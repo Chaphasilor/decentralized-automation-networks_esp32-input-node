@@ -17,6 +17,7 @@ pub mod wifi;
 
 use crate::wifi::wifi;
 
+// config struct, values will be read in from `cfg.toml` at compile time
 #[toml_cfg::toml_config]
 pub struct Config {
     #[default("")]
@@ -121,7 +122,7 @@ fn main() -> Result<()> {
     let inbound_socket = UdpSocket::bind(socket_inbound_address)?;
     info!("socket bound");
 
-    let mut target: SocketAddr = SocketAddr::from(format!("{}:{}", "192.168.178.125", "33001").parse::<SocketAddr>().expect("No valid target address given. Use format: <ip>:<port>"));
+    let mut target: SocketAddr = format!("{}:{}", config.target_ip, config.target_port).parse::<SocketAddr>().expect("No valid target address given. Make sure cfg.toml contains a valid target_ip and target_port");
     let timeout = Duration::from_millis(10);
     inbound_socket.set_read_timeout(timeout.into()).expect("Couldn't set socket timeout");
 
@@ -131,6 +132,7 @@ fn main() -> Result<()> {
 
     let mut buf = [0; 1024];
 
+    // spawn thread with larger stack size to (mostly) prevent stack overflows
     thread::Builder::new().stack_size(32768).spawn(move || {
 
         loop {
@@ -192,6 +194,7 @@ fn main() -> Result<()> {
                 timer_check_incoming = Instant::now();
             }
 
+            // decreasing the delay below 2000ms will cause a stack overflow after a few (<5) iterations, not sure why
             if timer_generate_data.elapsed().as_millis() > 2000 {
 
                 unsafe {
