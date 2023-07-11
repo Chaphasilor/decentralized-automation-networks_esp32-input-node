@@ -1,15 +1,10 @@
+use esp_idf_svc::eventloop::EspSystemEventLoop;
 use esp_idf_sys as _; // If using the `binstart` feature of `esp-idf-sys`, always keep this module imported
 use esp_idf_hal::{delay::FreeRtos, gpio::PinDriver, peripherals::Peripherals};
 use log::*;
-use esp_idf_svc::{
-    eventloop::EspSystemEventLoop,
-};
-use anyhow::{bail, Result, Error};
-use std::{net::{UdpSocket, SocketAddr}, time::{SystemTime, UNIX_EPOCH, Duration, Instant}, thread};
-use std::net::{TcpListener, TcpStream};
+use anyhow::{Result};
+use std::{net::{UdpSocket, SocketAddr}, time::{SystemTime, Duration, Instant}, thread};
 use smol;
-use toml_cfg::toml_config;
-use futures;
 use serde_json::json;
 use esp_idf_sys::{
     esp, gpio_config, gpio_config_t, gpio_install_isr_service, gpio_int_type_t_GPIO_INTR_POSEDGE, gpio_int_type_t_GPIO_INTR_NEGEDGE,
@@ -57,18 +52,12 @@ fn main() -> Result<()> {
     esp_idf_sys::link_patches();
     // Bind the log crate to the ESP Logging facilities
     esp_idf_svc::log::EspLogger::initialize_default();
-    // info!("Hello, world!");
 
-    // // Get all the peripherals
-    // let peripherals = Peripherals::take().unwrap();
-    // // Initialize Pin 8 as an output to drive the LED
-    // let mut led = peripherals.pins.gpio4.into_output().unwrap();
-
-    let GPIO_NUM = 12;
+    let gpio_num = 12;
 
     // Configures the button
     let io_conf = gpio_config_t {
-        pin_bit_mask: 1 << GPIO_NUM,
+        pin_bit_mask: 1 << gpio_num,
         mode: gpio_mode_t_GPIO_MODE_INPUT,
         pull_up_en: true.into(),
         pull_down_en: false.into(),
@@ -92,7 +81,7 @@ fn main() -> Result<()> {
 
         // Registers our function with the generic GPIO interrupt handler we installed earlier.
         esp!(gpio_isr_handler_add(
-            GPIO_NUM,
+            gpio_num,
             Some(button_interrupt),
             std::ptr::null_mut()
         ))?;
@@ -131,45 +120,6 @@ fn main() -> Result<()> {
     let outbound_socket = UdpSocket::bind(socket_outbound_address)?;
     let inbound_socket = UdpSocket::bind(socket_inbound_address)?;
     info!("socket bound");
-
-
-    // let main_task = smol::spawn(async {
-    //     info!("{}", 1 + 2);
-    //     // async_main().await;
-    // });
-    // thread::Builder::new().stack_size(4096).spawn(move || {
-    //     // smol::block_on(test_tcp_bind()).unwrap();
-    //     smol::block_on(async_main()).unwrap();
-    // })?;
-
-    // #[cfg(not(esp_idf_version = "4.3"))]
-    // test_tcp_bind_async()?;
-
-    // loop {
-
-    //     //TODO check socket for incoming messages
-
-    //     let is_high = input_pin.is_high();
-    //     if is_high == input_state {
-    //         continue;
-    //     }
-
-    //     let message = "test";
-    //     socket.send_to(message.as_bytes(), socket_target_address)?;
-    //     // let message = String::from_utf8(buffer.into())?;
-
-    //     // Inverse logic to turn LED on
-    //     led_pin.set_low().unwrap();
-    //     info!("LED ON");
-    //     FreeRtos::delay_ms(100);
-
-    //     led_pin.set_high().unwrap();
-    //     info!("LED OFF");
-    //     FreeRtos::delay_ms(100);
-
-    //     input_state = is_high;
-        
-    // }
 
     let mut target: SocketAddr = SocketAddr::from(format!("{}:{}", "192.168.178.125", "33001").parse::<SocketAddr>().expect("No valid target address given. Use format: <ip>:<port>"));
     let timeout = Duration::from_millis(10);
@@ -314,74 +264,3 @@ fn main() -> Result<()> {
     Ok(())
 
 }
-
-// fn test_tcp_bind_async() -> anyhow::Result<()> {
-//     async fn test_tcp_bind() -> smol::io::Result<()> {
-//         /// Echoes messages from the client back to it.
-//         async fn echo(stream: smol::Async<TcpStream>) -> smol::io::Result<()> {
-//             smol::io::copy(&stream, &mut &stream).await?;
-//             Ok(())
-//         }
-
-//         // Create a listener.
-//         // let listener = smol::Async::<TcpListener>::bind(([0, 0, 0, 0], 8081))?;
-//         let socket_address = SocketAddr::from(([0, 0, 0, 0], 8081));
-//         let listener = smol::net::UdpSocket::bind(socket_address).await?;
-
-//         let mut buf = [0; 1024];
-
-//         // Accept clients in a loop.
-//         // loop {
-//             info!("waiting for data");
-//             let (n, source) = listener.recv_from(&mut buf).await?;
-
-//             info!("test");
-//                 // info!("Accepted client: {}", source);
-//                 // info!("Received data: {}", String::from_utf8_lossy(buf[..n].into()));
-
-//             // Spawn a task that echoes messages from the client back to it.
-//             // smol::spawn(echo(stream)).detach();
-//         // }
-//         Ok(())
-//     }
-
-//     info!("About to bind a simple echo service to port 8081 using async (smol-rs)!");
-
-//     #[allow(clippy::needless_update)]
-//     {
-//         esp_idf_sys::esp!(unsafe {
-//             esp_idf_sys::esp_vfs_eventfd_register(&esp_idf_sys::esp_vfs_eventfd_config_t {
-//                 max_fds: 5,
-//                 ..Default::default()
-//             })
-//         })?;
-//     }
-
-//     thread::Builder::new().stack_size(4096).spawn(move || {
-//         smol::block_on(test_tcp_bind()).unwrap();
-//     })?;
-
-//     Ok(())
-// }
-
-// async fn async_main() -> smol::io::Result<()> {
-
-//     // info!("async main");
-
-//     let mut tasks: Vec<smol::Task<Result<(), std::io::Error>>> = vec![];
-
-//     async fn test_task() -> smol::io::Result<()> {
-//         info!("{}", 1 + 2);
-//         Ok(())
-//     }
-
-//     // tasks.push(smol::spawn(test_task()).detach());
-//     tasks.push(smol::spawn(test_task()));
-
-//     futures::future::join_all(tasks).await;
-
-//     // warn!("still alive");
-
-//     Ok(())
-
-// }
