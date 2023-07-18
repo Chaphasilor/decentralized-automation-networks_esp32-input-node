@@ -62,7 +62,7 @@ fn main() -> Result<()> {
         mode: gpio_mode_t_GPIO_MODE_INPUT,
         pull_up_en: true.into(),
         pull_down_en: false.into(),
-        intr_type: gpio_int_type_t_GPIO_INTR_NEGEDGE, // Positive edge trigger = button down
+        intr_type: gpio_int_type_t_GPIO_INTR_NEGEDGE, // Negative edge trigger = button down
     };
 
     // Queue configurations
